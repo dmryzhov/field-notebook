@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Field Notebook</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:#F3EBD9;color:#1E1914;padding:20px;background-image:radial-gradient(rgba(0,0,0,.03) 1px,transparent 1px);background-size:6px 6px;}
+.card{background:#FBF6EA;border:1px solid #D9CBA8;border-radius:3px;}
+input{color:#1E1914;font-family:inherit;font-size:15px;background:transparent;border:none;outline:none;width:100%;}
+input::placeholder{color:#8A7E6A;font-style:italic;}
+textarea{color:#1E1914;font-family:inherit;font-size:15px;background:transparent;border:none;outline:none;width:100%;resize:vertical;}
+textarea::placeholder{color:#8A7E6A;font-style:italic;}
+button{cursor:pointer;font-family:inherit;border-radius:3px;border:none;transition:background .12s;}
+.bdk{background:#1E1914;color:#F3EBD9;padding:7px 14px;font-weight:500;font-size:14px;}
+.bdk:hover{background:#9A2B26;}
+.bgh{background:transparent;color:#3B342A;padding:6px 10px;font-size:14px;}
+.bgh:hover{background:#E9DEC3;}
+.pend{background:#9A2B26;color:#F5E9CE;padding:9px 14px;font-weight:500;font-size:14px;animation:pulse 2.4s ease-in-out infinite;}
+.doneb{background:transparent;color:#4F6A3B;border:1px solid #4F6A3B;padding:9px 14px;font-weight:500;font-size:14px;}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:999px;}
+.tab{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:none;border:none;border-bottom:2px solid transparent;padding:4px 0;color:#8A7E6A;}
+.tab.on{color:#1E1914;border-bottom-color:#1E1914;}
+.erow{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:3px;position:relative;}
+.erow:hover{background:#E9DEC3;}
+.erow:hover .mop{opacity:1!important;}
+.drop{position:absolute;right:0;top:100%;background:#FBF6EA;border:1px solid #D9CBA8;border-radius:3px;padding:4px 0;z-index:99;min-width:185px;box-shadow:0 8px 20px -8px rgba(51,33,0,.25);display:none;}
+.drop button{display:block;width:100%;text-align:left;padding:7px 14px;background:none;border:none;font-size:13px;color:#1E1914;}
+.drop button:hover{background:#E9DEC3;}
+.mbg{position:fixed;inset:0;background:rgba(30,25,20,.55);backdrop-filter:blur(2px);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;}
+.modal{background:#FBF6EA;border:1px solid #D9CBA8;border-radius:3px;max-width:620px;width:100%;margin-top:28px;position:relative;}
+.cai{display:inline-block;padding:8px 12px;border-radius:3px;background:#FBF6EA;border:1px solid #D9CBA8;font-size:15px;line-height:1.6;max-width:90%;color:#1E1914;}
+.cus{display:inline-block;padding:8px 12px;border-radius:3px;background:#1E1914;font-size:15px;line-height:1.6;max-width:90%;color:#F3EBD9;}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid #D9CBA8;border-top-color:#8A7E6A;border-radius:50%;animation:spin .8s linear infinite;}
+.vsplash{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;text-align:center;gap:18px;}
+[contenteditable]:focus{outline:1px solid #D9CBA8;border-radius:2px;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.72}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ── helpers ── */
+const pad=n=>String(n).padStart(2,'0');
+const toK=()=>{const d=new Date();return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
+const addD=(s,n)=>{const[y,m,d]=s.split('-').map(Number);const dt=new Date(y,m-1,d);dt.setDate(dt.getDate()+n);return`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;};
+const wkK=()=>{const d=new Date();const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dn=dt.getUTCDay()||7;dt.setUTCDate(dt.getUTCDate()+4-dn);const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1));return`${dt.getUTCFullYear()}-W${pad(Math.ceil(((dt-ys)/86400000+1)/7))}`;};
+const moK=()=>{const d=new Date();return`${d.getFullYear()}-${pad(d.getMonth()+1)}`;};
+const yrK=()=>String(new Date().getFullYear());
+const isSun=()=>new Date().getDay()===0;
+const isLastSun=()=>{const d=new Date();if(d.getDay()!==0)return false;const n=new Date(d);n.setDate(d.getDate()+7);return n.getMonth()!==d.getMonth();};
+const fmtL=()=>new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+const fmtS=iso=>{const[y,m,d]=iso.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});};
+const fmtM=mk=>{const[y,m]=mk.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});};
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const nxMo=mk=>{const[y,m]=mk.split('-').map(Number);return`${m===12?y+1:y}-${pad(m===12?1:m+1)}`;};
+const safeName=n=>n.replace(/[<>:"/\\|?*\n]/g,'-').trim();
+const SY={task:'•',done:'✕',mig:'›',ev:'○',nt:'—',can:'⊘',pri:'✱'};
+const sfx=e=>{if(e.symbol==='event')return SY.ev;if(e.symbol==='note')return SY.nt;if(e.status==='done')return SY.done;if(e.status==='migrated')return SY.mig;if(e.status==='cancelled')return SY.can;return SY.task;};
+const dimE=e=>['done','migrated','cancelled'].includes(e.status);
+const cIcon=c=>{if(c.kind==='goals')return'◎';return c.icon||'📖';};
+
+/* ── default collections ── */
+const DEFAULT_COLLECTIONS=[
+  {id:'goals',name:'Goals · 12 months',kind:'goals',pinned:true},
+  {id:'fp-digest',name:'FP Digest',kind:'project',pinned:true,icon:'🌐',desc:'Foreign Policy & CypherBrief reading log'},
+  {id:'domains',name:'Domains · GoDaddy',kind:'project',pinned:true,icon:'🌍',desc:'Domain roster, renewals & payment schedule'},
+  {id:'inulife',name:'InuLife Build',kind:'project',pinned:true,icon:'🏪',desc:'Shopify store setup log & task tracker'},
+  {id:'email-setup',name:'Email · chikebi.com',kind:'project',pinned:true,icon:'✉',desc:'Proton email & domain setup steps'},
+  {id:'files-log',name:'Files Log',kind:'project',pinned:false,icon:'📄',desc:'Document activity: txt, xlsx, docx'},
+];
+const SEED_ENTRIES={
+  'fp-digest':[{symbol:'note',text:'Format: title · date · 2-sentence summary'},{symbol:'note',text:'Use * to flag urgent or revisit-worthy pieces'}],
+  'domains':[{symbol:'note',text:'Format: domain | expiry | auto-renew | cost/yr'},{symbol:'task',text:'Pull full GoDaddy roster via Cowork + Chrome'},{symbol:'task',text:'Set renewal reminders 60 days before each expiry'}],
+  'inulife':[{symbol:'note',text:'Log every Shopify action with date and outcome'},{symbol:'task',text:'Create Shopify store account'},{symbol:'task',text:'Configure store name: InuLife'},{symbol:'task',text:'Set up payment gateway'},{symbol:'task',text:'Add first product collection'},{symbol:'task',text:'Set up shipping zones'},{symbol:'task',text:'Connect custom domain'},{symbol:'task',text:'Test checkout flow end-to-end'},{symbol:'task',text:'Launch store'}],
+  'email-setup':[{symbol:'task',text:'Log into Proton account'},{symbol:'task',text:'Add custom domain chikebi.com in Proton settings'},{symbol:'task',text:'Copy Proton MX and TXT records'},{symbol:'task',text:'Add DNS records in GoDaddy for chikebi.com'},{symbol:'task',text:'Verify domain ownership in Proton'},{symbol:'task',text:'Create info@chikebi.com address'},{symbol:'task',text:'Send test email to verify delivery'}],
+  'files-log':[{symbol:'note',text:'Auto-entries from file tracker script: filename | time | summary'},{symbol:'note',text:'Run file-tracker.py in background to populate'}],
+};
+
+/* ── IndexedDB for persisting vault handle across sessions ── */
+const IDB={
+  _db:null,
+  open(){return new Promise((res,rej)=>{if(this._db)return res(this._db);const r=indexedDB.open('bujo-vault',1);r.onupgradeneeded=e=>e.target.result.createObjectStore('h');r.onsuccess=e=>{this._db=e.target.result;res(this._db);};r.onerror=()=>rej();});},
+  async get(k){try{const db=await this.open();return new Promise(res=>{const r=db.transaction('h','readonly').objectStore('h').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);});}catch{return null;}},
+  async set(k,v){try{const db=await this.open();return new Promise(res=>{const tx=db.transaction('h','readwrite');tx.objectStore('h').put(v,k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);});}catch{return false;}},
+};
+
+/* ── vault state ── */
+let vaultHandle=null;
+let vaultStatus='disconnected'; // disconnected | connecting | connected | error
+
+async function connectVault(){
+  if(!window.showDirectoryPicker){alert('File System Access API not supported. Please use Brave, Chrome, or Edge.');return;}
+  try{
+    vaultStatus='connecting';R();
+    const h=await window.showDirectoryPicker({mode:'readwrite',startIn:'documents'});
+    vaultHandle=h;
+    await IDB.set('vault',h);
+    vaultStatus='connected';
+    await loadFromVault();
+  }catch(e){
+    vaultStatus=vaultHandle?'connected':'disconnected';
+    R();
+  }
+}
+
+async function requestPermission(h){
+  try{
+    const p=await h.queryPermission({mode:'readwrite'});
+    if(p==='granted')return true;
+    const r=await h.requestPermission({mode:'readwrite'});
+    return r==='granted';
+  }catch{return false;}
+}
+
+async function getOrCreateDir(parent,name){
+  return parent.getDirectoryHandle(name,{create:true});
+}
+
+async function writeFile(dirH,filename,content){
+  const fh=await dirH.getFileHandle(filename,{create:true});
+  const w=await fh.createWritable();
+  await w.write(content);
+  await w.close();
+}
+
+async function readJSONFile(dirH,filename){
+  try{
+    const fh=await dirH.getFileHandle(filename);
+    const file=await fh.getFile();
+    return JSON.parse(await file.text());
+  }catch{return null;}
+}
+
+/* ── Obsidian markdown generation ── */
+async function writeObsidianFiles(){
+  if(!vaultHandle)return;
+  try{
+    // Daily logs
+    const dailyDir=await getOrCreateDir(vaultHandle,'Daily');
+    const dates=Array.from(new Set(S.entries.filter(e=>e.collection==='daily').map(e=>e.date)));
+    for(const date of dates){
+      const ents=S.entries.filter(e=>e.collection==='daily'&&e.date===date);
+      const done=ents.filter(e=>e.status==='done').length;
+      const md=[
+        `---`,`date: ${date}`,`type: daily-log`,`done: ${done}/${ents.length}`,`---`,``,
+        `# ${fmtS(date)}`,``,
+        ...ents.map(e=>`- ${sfx(e)} ${e.text}${e.priority?' ✱':''}`),``
+      ].join('\n');
+      await writeFile(dailyDir,`${date}.md`,md);
+    }
+    // Collections
+    const collDir=await getOrCreateDir(vaultHandle,'Collections');
+    for(const c of S.collections){
+      if(['daily','monthly','future'].includes(c.id))continue;
+      const ents=S.entries.filter(e=>e.collection===c.id);
+      const done=ents.filter(e=>e.status==='done').length;
+      const open=ents.filter(e=>e.status==='open');
+      const md=[
+        `---`,`collection: ${c.name}`,`kind: ${c.kind}`,`progress: ${done}/${ents.length}`,`---`,``,
+        `# ${c.name}`,
+        c.desc?`\n> ${c.desc}\n`:'',
+        ``,`**Progress:** ${done}/${ents.length} · ${open.length} open`,``,
+        ents.length?`## Entries\n\n`+ents.map(e=>`- ${sfx(e)} ${e.text}${e.wandScore!=null?` *(MWG ${e.wandScore})*`:''}`).join('\n'):'*(empty)*',``
+      ].join('\n');
+      await writeFile(collDir,`${safeName(c.name)}.md`,md);
+    }
+    // Monthly logs
+    const monthlyDir=await getOrCreateDir(vaultHandle,'Monthly');
+    const months=Array.from(new Set(S.entries.filter(e=>e.collection==='monthly').map(e=>e.date)));
+    for(const mo of months){
+      const ents=S.entries.filter(e=>e.collection==='monthly'&&e.date===mo);
+      const md=[`# ${fmtM(mo)}`,``,`## Month tasks`,``,...ents.map(e=>`- ${sfx(e)} ${e.text}`),``].join('\n');
+      await writeFile(monthlyDir,`${mo}.md`,md);
+    }
+  }catch(e){console.log('obsidian write err',e);}
+}
+
+/* ── load / save ── */
+const def=()=>({
+  entries:[],
+  collections:DEFAULT_COLLECTIONS.map(c=>({...c,createdAt:new Date().toISOString()})),
+  reviews:{weekly:{},monthly:{},annual:{}},
+  annualSession:null,
+  status:{lastMorning:null,lastEvening:null,lastWeekly:null,lastMonthly:null,lastAnnual:null},
+  meta:{createdAt:new Date().toISOString()}
+});
+
+let S=def(),saveT=null;
+
+async function loadFromVault(){
+  if(!vaultHandle)return;
+  const p=await readJSONFile(vaultHandle,'field-notebook.json');
+  if(p){
+    const d=def();
+    S={...d,...p,
+      collections:p.collections?.length?p.collections:d.collections,
+      status:{...d.status,...(p.status||{})},
+      reviews:{...d.reviews,...(p.reviews||{})},
+      meta:{...d.meta,...(p.meta||{})}
+    };
+    // Migration: add missing default collections
+    const existingIds=new Set(S.collections.map(c=>c.id));
+    const missing=DEFAULT_COLLECTIONS.filter(c=>!existingIds.has(c.id));
+    if(missing.length){
+      const now=new Date().toISOString();
+      const newColls=missing.map(c=>({...c,createdAt:now}));
+      const seeds=[];
+      newColls.forEach(c=>(SEED_ENTRIES[c.id]||[]).forEach(e=>seeds.push({id:uid(),collection:c.id,symbol:e.symbol,status:'open',text:e.text,priority:false,createdAt:now})));
+      S.collections=[...S.collections,...newColls];
+      S.entries=[...S.entries,...seeds];
+    }
+  } else {
+    // First run — seed entries
+    const now=new Date().toISOString();
+    const seeds=[];
+    Object.entries(SEED_ENTRIES).forEach(([cid,items])=>items.forEach(e=>seeds.push({id:uid(),collection:cid,symbol:e.symbol,status:'open',text:e.text,priority:false,createdAt:now})));
+    S.entries=[...S.entries,...seeds];
+  }
+  vaultStatus='connected';
+  R();
+  await saveToVault();
+}
+
+async function saveToVault(){
+  if(!vaultHandle)return;
+  try{
+    await writeFile(vaultHandle,'field-notebook.json',JSON.stringify(S,null,2));
+    await writeObsidianFiles();
+  }catch(e){console.log('save err',e);}
+}
+
+function save(){if(saveT)clearTimeout(saveT);saveT=setTimeout(()=>saveToVault(),500);}
+function upd(fn){S=fn(S);save();R();}
+
+async function ai(sys,msgs,max=900){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:max,system:sys,messages:msgs})});
+  if(!r.ok)throw new Error(r.status);
+  const d=await r.json();
+  return d.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n').trim()||'';
+}
+
+/* ── initial load ── */
+async function load(){
+  const stored=await IDB.get('vault');
+  if(stored){
+    const granted=await requestPermission(stored);
+    if(granted){vaultHandle=stored;await loadFromVault();return;}
+  }
+  vaultStatus='disconnected';
+  R();
+}
+
+/* ── UI state ── */
+let vw='today',collId=null,modal=null,sym='task',menuId=null;
+let evM=[],evP='chat',evPr=[],evCo=[];
+let peM=[],peP='chat',pePl=null;
+let anQ=0;
+
+/* ── entry actions ── */
+const tog=id=>upd(s=>({...s,entries:s.entries.map(e=>e.id===id?{...e,status:e.status==='done'?'open':'done',completedAt:e.status==='done'?null:new Date().toISOString()}:e)}));
+const migE=id=>upd(s=>{const e=s.entries.find(x=>x.id===id);if(!e)return s;return{...s,entries:[...s.entries.map(x=>x.id===id?{...x,status:'migrated'}:x),{...e,id:uid(),status:'open',date:addD(e.date||toK(),1),createdAt:new Date().toISOString()}]};});
+const canE=id=>upd(s=>({...s,entries:s.entries.map(e=>e.id===id?{...e,status:'cancelled'}:e)}));
+const movE=(id,cid)=>upd(s=>{const e=s.entries.find(x=>x.id===id);if(!e)return s;return{...s,entries:[...s.entries.map(x=>x.id===id?{...x,status:'migrated'}:x),{...e,id:uid(),collection:cid,status:'open',createdAt:new Date().toISOString()}]};});
+const editT=(id,txt)=>{const t=txt.trim();if(t)upd(s=>({...s,entries:s.entries.map(e=>e.id===id?{...e,text:t}:e)}));};
+const delE=id=>upd(s=>({...s,entries:s.entries.filter(e=>e.id!==id)}));
+const renameC=(id,txt)=>{const t=txt.trim();if(t)upd(s=>({...s,collections:s.collections.map(c=>c.id===id?{...c,name:t}:c)}));};
+const redescC=(id,txt)=>upd(s=>({...s,collections:s.collections.map(c=>c.id===id?{...c,desc:txt.trim()}:c)}));
+
+function openMenu(id,ev){ev.stopPropagation();const prev=menuId;closeMenu();if(prev!==id){menuId=id;const el=document.getElementById('mn-'+id);if(el)el.style.display='block';}}
+function closeMenu(){if(menuId){const el=document.getElementById('mn-'+menuId);if(el)el.style.display='none';menuId=null;}}
+document.addEventListener('click',closeMenu,true);
+
+/* ── main render ── */
+function R(){
+  const app=document.getElementById('app');
+  if(!app)return;
+
+  // Vault not connected — show splash
+  if(vaultStatus==='disconnected'||vaultStatus==='connecting'){
+    app.innerHTML=`
+<div class="vsplash">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#8A7E6A;">Field Notebook · vol.I</div>
+  <h1 style="font-family:Georgia,serif;font-size:48px;font-weight:400;color:#1E1914;line-height:1;">Connect<br>your vault</h1>
+  <div class="card" style="padding:18px;max-width:440px;text-align:left;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:#8A7E6A;margin-bottom:8px;">Navigate to this folder</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1E1914;word-break:break-all;line-height:1.6;">C:\\Users\\User\\Proton Drive\\My files\\IT\\Obsidian\\v2_Journal\\Journal</div>
+  </div>
+  <button class="bdk" style="padding:12px 28px;font-size:16px;" onclick="connectVault()">
+    ${vaultStatus==='connecting'?'<span style="opacity:.6;">Opening…</span>':'📂 Connect Obsidian Vault'}
+  </button>
+  <div style="font-size:13px;color:#8A7E6A;max-width:360px;line-height:1.6;">
+    Brave will ask you to pick a folder. Navigate to your Journal folder above and click <em>Select Folder</em>. Your journal data will be read and written there directly.
+  </div>
+</div>`;
+    return;
+  }
+
+  const today=toK(),mk=moK(),tk=wkK(),yk=yrK();
+  const mD=S.status.lastMorning===today,eD=S.status.lastEvening===today;
+  const wDu=isSun()&&S.status.lastWeekly!==tk;
+  const mDu=isLastSun()&&S.status.lastMonthly!==mk;
+  const aDu=S.status.lastAnnual!==yk;
+  const ttl=collId?S.collections.find(c=>c.id===collId)?.name||'':
+    vw==='today'?'Today':vw==='month'?fmtM(mk):vw==='future'?'Future Log':vw==='collections'?'Collections':'Index';
+
+  app.innerHTML=`
+<div style="margin-bottom:18px;">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#8A7E6A;margin-bottom:4px;">Field Notebook · vol.I</div>
+  <h1 style="font-family:Georgia,serif;font-size:44px;font-weight:400;line-height:1;color:#1E1914;">${ttl}</h1>
+  <div style="font-family:Georgia,serif;font-style:italic;font-size:16px;margin-top:4px;color:#3B342A;">${fmtL()}</div>
+</div>
+<nav style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+  ${['today','month','future','collections','index'].map(t=>`<button class="tab${vw===t&&!collId?' on':''}" onclick="goVw('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}
+</nav>
+<div style="height:1px;background:#D9CBA8;margin-bottom:16px;"></div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
+  <button class="${mD?'doneb':'pend'}" onclick="openM('morning')">☀ Morning <span class="chip" style="background:${mD?'transparent':'rgba(0,0,0,.18)'};">${mD?'done':'pending'}</span></button>
+  <button class="${eD?'doneb':'pend'}" onclick="openM('evening')">☽ Evening <span class="chip" style="background:${eD?'transparent':'rgba(0,0,0,.18)'};">${eD?'done':'pending'}</span></button>
+  ${wDu?`<button class="bgh" style="border:1px solid #D9CBA8;" onclick="openM('weekly')">📅 Weekly <span class="chip" style="background:#E9DEC3;color:#3B342A;">due</span></button>`:''}
+  ${mDu?`<button class="bgh" style="border:1px solid #D9CBA8;" onclick="openM('monthly')">📆 Monthly <span class="chip" style="background:#E9DEC3;color:#3B342A;">due</span></button>`:''}
+  ${aDu?`<button class="bgh" style="border:1px solid #D9CBA8;" onclick="openM('annual')">Annual <span class="chip" style="background:#E9DEC3;color:#3B342A;">due</span></button>`:''}
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+    <span style="width:7px;height:7px;border-radius:50%;background:#4F6A3B;display:inline-block;"></span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8A7E6A;text-transform:uppercase;letter-spacing:.12em;">${vaultHandle?.name||'vault'}</span>
+  </div>
+</div>
+<div id="mv">${collId?vColl():vMain()}</div>
+<div style="margin-top:32px;padding-top:14px;border-top:1px solid #D9CBA8;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;text-transform:uppercase;letter-spacing:.15em;">Started ${new Date(S.meta.createdAt).toLocaleDateString()}</div>
+  <div style="display:flex;gap:8px;">
+    <button class="bgh" style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.15em;" onclick="connectVault()">⟳ Reconnect vault</button>
+    <button class="bgh" style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.15em;" onclick="forceSave()">↑ Sync now</button>
+  </div>
+</div>
+${modal?mHTML():''}`;
+}
+
+function forceSave(){saveToVault().then(()=>{const el=document.querySelector('[onclick="forceSave()"]');if(el){el.textContent='✓ Synced';setTimeout(()=>{el.textContent='↑ Sync now';},1800);}});}
+
+function goVw(v){vw=v;collId=null;R();}
+function openM(k){
+  if(k==='evening'){evM=[];evP='chat';evPr=[];evCo=[];}
+  else if(k==='weekly'||k==='monthly'){peM=[];peP='chat';pePl=null;}
+  modal={kind:k};R();
+  if(k==='evening')setTimeout(startEve,80);
+  else if(k==='weekly'||k==='monthly')setTimeout(()=>startPer(k),80);
+}
+function closeM(){modal=null;R();}
+function vMain(){
+  if(vw==='today')return vToday();if(vw==='month')return vMonth();
+  if(vw==='future')return vFuture();if(vw==='collections')return vColls();return vIndex();
+}
+function inpBar(id,ph,fn){return`<div class="card" style="padding:12px;margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;"><input id="${id}" placeholder="${ph}" onkeydown="if(event.key==='Enter')${fn}()"><button class="bdk" onclick="${fn}()" style="flex-shrink:0;">+</button></div></div>`;}
+
+/* ── today ── */
+function vToday(){
+  const today=toK();
+  const entries=S.entries.filter(e=>e.collection==='daily'&&e.date===today).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+  const pinned=S.collections.filter(c=>c.pinned);
+  const sbtns=['task','event','note'].map(s=>`<button onclick="setSym('${s}')" style="width:28px;height:28px;border:none;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:16px;background:${sym===s?'#1E1914':'transparent'};color:${sym===s?'#F3EBD9':'#3B342A'};padding:0;cursor:pointer;">${s==='task'?'•':s==='event'?'○':'—'}</button>`).join('');
+  return`<div class="card" style="padding:12px;margin-bottom:16px;"><div style="display:flex;align-items:center;gap:8px;"><div style="display:flex;gap:3px;">${sbtns}</div><input id="ei" placeholder="Rapid-log an entry…" onkeydown="if(event.key==='Enter')addE()"><button class="bdk" onclick="addE()" style="flex-shrink:0;">+</button></div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;margin-top:6px;">* for priority · Enter to save</div></div>
+${entries.length?`<ul style="list-style:none;">${entries.map(erow).join('')}</ul>`:`<div style="text-align:center;padding:32px 0;font-family:Georgia,serif;font-style:italic;color:#8A7E6A;font-size:17px;">A blank page. What is today about?</div>`}
+${pinned.length?`<div style="margin-top:32px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Pinned collections</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${pinned.map(c=>{const cnt=S.entries.filter(e=>e.collection===c.id).length;const done=S.entries.filter(e=>e.collection===c.id&&e.status==='done').length;return`<button class="card bgh" style="padding:8px 13px;border:1px solid #D9CBA8;display:flex;align-items:center;gap:8px;font-size:14px;color:#1E1914;" onclick="oColl('${c.id}')">${cIcon(c)} ${c.name} <span class="chip" style="background:#E9DEC3;color:#3B342A;">${done}/${cnt}</span></button>`;}).join('')}</div></div>`:''}`;
+}
+function setSym(s){sym=s;R();}
+function addE(){const i=document.getElementById('ei');if(!i)return;const t=i.value.trim();if(!t)return;const pri=t.startsWith('*')||t.startsWith('!');upd(s=>({...s,entries:[...s.entries,{id:uid(),collection:'daily',date:toK(),symbol:sym,status:'open',text:pri?t.replace(/^[*!]\s*/,''):t,priority:pri,createdAt:new Date().toISOString()}]}));i.value='';}
+
+/* ── erow ── */
+function erow(e){
+  const d=dimE(e),c=d?'#8A7E6A':'#1E1914',active=!d,isT=e.symbol==='task';
+  return`<li class="erow"><button onclick="tog('${e.id}')" style="background:none;border:none;font-family:'IBM Plex Mono',monospace;font-size:18px;width:1.3em;text-align:center;color:${c};flex-shrink:0;padding-top:2px;cursor:pointer;">${sfx(e)}</button>${e.priority?`<span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#9A2B26;flex-shrink:0;padding-top:4px;">✱</span>`:''}<div contenteditable="${active}" onblur="editT('${e.id}',this.innerText)" style="flex:1;font-size:15px;line-height:24px;color:${c};${d?'text-decoration:line-through;':''}outline:none;word-break:break-word;">${e.text}</div>${isT&&active?`<div style="position:relative;flex-shrink:0;"><button class="bgh mop" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 7px;opacity:0;" onclick="openMenu('${e.id}',event)">•••</button><div id="mn-${e.id}" class="drop"><button onclick="migE('${e.id}');closeMenu()">→ Migrate to tomorrow</button><button onclick="canE('${e.id}');closeMenu()">⊘ Cancel</button><div style="height:1px;background:#D9CBA8;margin:3px 0;"></div><div style="padding:3px 14px;font-size:10px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.15em;color:#8A7E6A;">Move to collection</div>${S.collections.map(col=>`<button onclick="movE('${e.id}','${col.id}');closeMenu()">${cIcon(col)} ${col.name}</button>`).join('')}</div></div>`:''}</li>`;
+}
+
+/* ── month ── */
+function vMonth(){const mk=moK();const ml=S.entries.filter(e=>e.collection==='monthly'&&e.date===mk);const od=S.entries.filter(e=>e.collection==='daily'&&e.date.startsWith(mk)&&e.status==='open'&&e.symbol==='task');return`${inpBar('mi','Add a task for the month…','addMo')}<h3 style="font-family:Georgia,serif;font-size:19px;color:#3B342A;margin-bottom:10px;">Month tasks</h3>${ml.length?`<ul style="list-style:none;margin-bottom:24px;">${ml.map(erow).join('')}</ul>`:`<p style="font-family:Georgia,serif;font-style:italic;color:#8A7E6A;margin-bottom:24px;">No month-level tasks yet.</p>`}<h3 style="font-family:Georgia,serif;font-size:19px;color:#3B342A;margin-bottom:10px;">Open in daily logs this month</h3>${od.length?`<ul style="list-style:none;">${od.map(e=>`<li style="display:flex;gap:8px;padding:5px 8px;align-items:center;"><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;width:1.3em;text-align:center;color:#8A7E6A;">•</span><span style="flex:1;font-size:14px;color:#1E1914;">${e.text}</span><span class="chip" style="background:#E9DEC3;color:#8A7E6A;">${e.date.slice(8)}</span></li>`).join('')}</ul>`:`<p style="font-family:Georgia,serif;font-style:italic;color:#8A7E6A;">Nothing outstanding.</p>`}`;}
+function addMo(){const i=document.getElementById('mi');if(!i)return;const t=i.value.trim();if(!t)return;upd(s=>({...s,entries:[...s.entries,{id:uid(),collection:'monthly',date:moK(),symbol:'task',status:'open',text:t,priority:false,createdAt:new Date().toISOString()}]}));i.value='';}
+
+/* ── future ── */
+function vFuture(){const fe=S.entries.filter(e=>e.collection==='future').sort((a,b)=>a.date.localeCompare(b.date));const bM={};fe.forEach(e=>{(bM[e.date]||=[]).push(e);});return`<div class="card" style="padding:12px;margin-bottom:16px;"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><input id="fi" placeholder="Something for a later month…" style="flex:1;min-width:120px;"><input type="month" id="fm" style="padding:6px 10px;border:1px solid #D9CBA8;border-radius:3px;font-size:14px;color:#1E1914;background:#FBF6EA;font-family:'IBM Plex Mono',monospace;"><button class="bdk" onclick="addFu()" style="flex-shrink:0;">+</button></div></div>${Object.keys(bM).length?Object.keys(bM).sort().map(m=>`<div style="margin-bottom:22px;"><h3 style="font-family:Georgia,serif;font-size:19px;color:#3B342A;margin-bottom:8px;">${fmtM(m)}</h3><ul style="list-style:none;">${bM[m].map(erow).join('')}</ul></div>`).join(''):`<div style="text-align:center;padding:32px 0;font-family:Georgia,serif;font-style:italic;color:#8A7E6A;font-size:17px;">The road ahead is empty.</div>`}`;}
+function addFu(){const i=document.getElementById('fi'),m=document.getElementById('fm');if(!i||!m)return;const t=i.value.trim(),mo=m.value;if(!t||!mo)return;upd(s=>({...s,entries:[...s.entries,{id:uid(),collection:'future',date:mo,symbol:'task',status:'open',text:t,priority:false,createdAt:new Date().toISOString()}]}));i.value='';m.value='';}
+
+/* ── collections ── */
+function vColls(){
+  const projects=S.collections.filter(c=>c.kind==='project');
+  const others=S.collections.filter(c=>c.kind!=='project');
+  const collCard=c=>{const cnt=S.entries.filter(e=>e.collection===c.id).length;const done=S.entries.filter(e=>e.collection===c.id&&e.status==='done').length;return`<li class="card" style="display:flex;align-items:center;padding:11px 14px;gap:10px;"><button style="flex:1;text-align:left;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:3px;" onclick="oColl('${c.id}')"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:15px;">${cIcon(c)}</span><span style="font-family:Georgia,serif;font-size:18px;color:#1E1914;">${c.name}</span><span class="chip" style="background:#E9DEC3;color:#8A7E6A;">${done}/${cnt}</span></div>${c.desc?`<div style="font-size:12px;color:#8A7E6A;margin-left:23px;">${c.desc}</div>`:''}</button><button class="bgh" style="padding:5px 7px;" onclick="pinC('${c.id}')" title="${c.pinned?'Unpin':'Pin'}"><span style="color:${c.pinned?'#B88A3F':'#8A7E6A'};">📌</span></button>${c.kind!=='goals'?`<button class="bgh" style="padding:5px 7px;" onclick="delC('${c.id}')"><span style="color:#8A7E6A;">🗑</span></button>`:''}</li>`;};
+  return`${projects.length?`<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Active projects</div><ul style="list-style:none;display:flex;flex-direction:column;gap:6px;margin-bottom:22px;">${projects.map(collCard).join('')}</ul>`:''}<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Other collections</div>${inpBar('ci','New collection — Books, Project X…','addColl')}<ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">${others.map(collCard).join('')}</ul>`;
+}
+function addColl(){const i=document.getElementById('ci');if(!i)return;const n=i.value.trim();if(!n)return;upd(s=>({...s,collections:[...s.collections,{id:uid(),name:n,kind:'custom',pinned:false,createdAt:new Date().toISOString()}]}));i.value='';}
+function pinC(id){upd(s=>({...s,collections:s.collections.map(c=>c.id===id?{...c,pinned:!c.pinned}:c)}));}
+function delC(id){if(id==='goals')return;if(!confirm('Delete collection?'))return;upd(s=>({...s,collections:s.collections.filter(c=>c.id!==id)}));}
+function oColl(id){collId=id;R();}
+function cColl(){collId=null;R();}
+
+/* ── single collection ── */
+function vColl(){
+  const c=S.collections.find(x=>x.id===collId);if(!c)return'';
+  let entries=S.entries.filter(e=>e.collection===c.id);
+  if(c.kind==='goals')entries=[...entries].sort((a,b)=>(b.wandScore??-1)-(a.wandScore??-1));
+  const done=entries.filter(e=>e.status==='done').length;
+  const total=entries.length;
+  const pct=total?Math.round((done/total)*100):0;
+  const isProj=c.kind==='project';
+  return`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+  <button class="bgh" style="color:#8A7E6A;font-size:13px;" onclick="cColl()">← Collections</button>
+  ${c.kind==='goals'?`<button class="bdk" onclick="openM('wand')">✦ Run MWG</button>`:''}
+</div>
+<h2 style="font-family:Georgia,serif;font-size:32px;font-weight:400;color:#1E1914;margin-bottom:3px;">${cIcon(c)} <span contenteditable="true" onblur="renameC('${c.id}',this.innerText)" style="outline:none;border-bottom:1px dashed transparent;cursor:text;" onmouseover="this.style.borderBottomColor='#D9CBA8'" onmouseout="this.style.borderBottomColor='transparent'" title="Click to rename">${c.name}</span></h2>
+<div contenteditable="true" onblur="redescC('${c.id}',this.innerText)" style="font-size:13px;color:#8A7E6A;margin-bottom:6px;outline:none;min-height:18px;border-bottom:1px dashed transparent;cursor:text;" onmouseover="this.style.borderBottomColor='#D9CBA8'" onmouseout="this.style.borderBottomColor='transparent'" title="Click to edit description">${c.desc||'<i style="color:#C4B99A;">Add a description…</i>'}</div>
+${isProj&&total?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><div style="flex:1;height:4px;border-radius:999px;background:#E9DEC3;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#4F6A3B;transition:width .3s;"></div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;">${done}/${total} done</span></div>`:'<div style="margin-bottom:14px;"></div>'}
+${inpBar('cei',c.kind==='goals'?'What do you want to accomplish in 12 months?':isProj?'Log a new entry…':'Add an entry…','addCE')}
+${entries.length?`<ul style="list-style:none;">${entries.map(e=>`<li class="erow"><button onclick="tog('${e.id}')" style="background:none;border:none;font-family:'IBM Plex Mono',monospace;font-size:18px;width:1.3em;text-align:center;color:${dimE(e)?'#8A7E6A':'#1E1914'};flex-shrink:0;cursor:pointer;">${sfx(e)}</button><div contenteditable="${!dimE(e)}" onblur="editT('${e.id}',this.innerText)" style="flex:1;font-size:15px;line-height:24px;color:${dimE(e)?'#8A7E6A':'#1E1914'};${dimE(e)?'text-decoration:line-through;':''}outline:none;">${e.text}</div>${c.kind==='goals'&&e.wandScore!=null?`<span class="chip" style="background:#B88A3F;color:#FFF7E2;flex-shrink:0;">MWG ${e.wandScore}</span>`:''}<button class="bgh" style="font-size:13px;padding:3px 6px;color:#8A7E6A;flex-shrink:0;opacity:.5;" onclick="delE('${e.id}')">🗑</button></li>`).join('')}</ul>`:`<div style="text-align:center;padding:32px 0;font-family:Georgia,serif;font-style:italic;color:#8A7E6A;font-size:17px;">Empty for now.</div>`}`;
+}
+function addCE(){const i=document.getElementById('cei');if(!i)return;const t=i.value.trim();if(!t)return;const b={id:uid(),collection:collId,symbol:'task',status:'open',text:t,priority:false,createdAt:new Date().toISOString()};if(S.collections.find(c=>c.id===collId)?.kind==='goals')b.wandScore=null;upd(s=>({...s,entries:[...s.entries,b]}));i.value='';}
+
+/* ── index ── */
+function vIndex(){const syms=[['•','Task, open'],['✕','Task, done'],['›','Migrated'],['⊘','Cancelled'],['○','Event'],['—','Note'],['✱','Priority']];const dates=Array.from(new Set(S.entries.filter(e=>e.collection==='daily').map(e=>e.date))).sort().reverse();return`<div style="margin-bottom:24px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Symbols</div><div class="card" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;">${syms.map(([s,d])=>`<div style="display:flex;gap:10px;align-items:center;font-size:14px;color:#3B342A;"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;width:1.3em;text-align:center;color:#1E1914;flex-shrink:0;">${s}</span>${d}</div>`).join('')}</div></div><div style="margin-bottom:24px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Collections</div><ul style="list-style:none;">${S.collections.map(c=>`<li><button style="background:none;border:none;cursor:pointer;width:100%;text-align:left;padding:5px 8px;border-radius:3px;display:flex;gap:8px;align-items:center;color:#1E1914;" onmouseover="this.style.background='#E9DEC3'" onmouseout="this.style.background=''" onclick="oColl('${c.id}')"><span style="color:#8A7E6A;">›</span><span style="font-family:Georgia,serif;font-size:17px;">${cIcon(c)} ${c.name}</span><span class="chip" style="margin-left:auto;background:#E9DEC3;color:#8A7E6A;">${S.entries.filter(e=>e.collection===c.id).length}</span></button></li>`).join('')}</ul></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px;">${[{t:'Weekly',k:'weekly',f:k=>k},{t:'Monthly',k:'monthly',f:fmtM},{t:'Annual',k:'annual',f:k=>k}].map(col=>`<div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:6px;">${col.t}</div>${Object.keys(S.reviews[col.k]).length?`<ul style="list-style:none;font-size:13px;">${Object.keys(S.reviews[col.k]).sort().reverse().map(k=>`<li style="padding:2px 0;color:#3B342A;">${col.f(k)}</li>`).join('')}</ul>`:`<div style="font-family:Georgia,serif;font-style:italic;font-size:13px;color:#8A7E6A;">None yet.</div>`}</div>`).join('')}</div><div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:6px;">Recent daily logs</div>${dates.length?`<ul style="list-style:none;">${dates.slice(0,14).map(d=>`<li style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;color:#3B342A;"><span>${fmtS(d)}</span><span style="color:#8A7E6A;">${S.entries.filter(e=>e.collection==='daily'&&e.date===d).length} entries</span></li>`).join('')}</ul>`:`<div style="font-family:Georgia,serif;font-style:italic;color:#8A7E6A;">No daily logs yet.</div>`}</div>`;}
+
+/* ── modals ── */
+function mHTML(){const k=modal?.kind;let body='';if(k==='morning')body=mMorn();else if(k==='evening')body=mEve();else if(k==='weekly'||k==='monthly')body=mPer(k);else if(k==='annual')body=mAnn();else if(k==='wand')body=mWand();return`<div class="mbg" onclick="if(event.target===this)closeM()"><div class="modal"><button onclick="closeM()" style="position:absolute;right:10px;top:10px;background:none;border:none;font-size:20px;color:#8A7E6A;cursor:pointer;">✕</button>${body}</div></div>`;}
+
+function mMorn(){
+  const today=toK(),yest=addD(today,-1);
+  if(!modal._m){modal._m=true;setTimeout(()=>{const openY=S.entries.filter(e=>e.collection==='daily'&&e.date===yest&&e.status==='open'&&e.symbol==='task');const tx=new Set(S.entries.filter(e=>e.collection==='daily'&&e.date===today).map(e=>e.text));const toMig=openY.filter(e=>!tx.has(e.text));if(toMig.length)upd(s=>{const ids=new Set(toMig.map(e=>e.id));const ne=toMig.map(e=>({id:uid(),collection:'daily',date:today,symbol:'task',status:'open',text:e.text,priority:e.priority,createdAt:new Date().toISOString()}));return{...s,entries:[...s.entries.map(e=>ids.has(e.id)?{...e,status:'migrated'}:e),...ne]};});},50);}
+  const tasks=S.entries.filter(e=>e.collection==='daily'&&e.date===today&&e.symbol==='task'&&e.status==='open');
+  return`<div style="padding:24px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><span style="font-size:20px;">☀</span><h2 style="font-family:Georgia,serif;font-size:26px;font-weight:400;color:#1E1914;">Morning</h2></div><div style="font-family:Georgia,serif;font-style:italic;color:#3B342A;margin-bottom:18px;">${fmtL()}</div>${tasks.length===0?`<div class="card" style="padding:18px;text-align:center;background:#F3EBD9;"><div style="font-family:Georgia,serif;font-style:italic;color:#3B342A;font-size:16px;margin-bottom:4px;">Nothing carried over. A clean page.</div></div>`:`<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:10px;">Carried into today</div><ul style="list-style:none;margin-bottom:14px;">${tasks.map(e=>`<li style="display:flex;gap:8px;padding:5px 8px;border-radius:3px;align-items:center;" onmouseover="this.style.background='#E9DEC3'" onmouseout="this.style.background=''"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;width:1.3em;text-align:center;color:#1E1914;">•</span><div style="flex:1;font-size:15px;color:#1E1914;">${e.text}</div><button class="bgh" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 7px;color:#8A7E6A;" onclick="canE('${e.id}')">drop</button></li>`).join('')}</ul>`}<button class="bdk" style="width:100%;padding:11px;font-size:15px;" onclick="beginDay()">→ Begin the day</button></div>`;
+}
+function beginDay(){upd(s=>({...s,status:{...s.status,lastMorning:toK()}}));closeM();}
+
+function chatbox(msgs,sending){return`<div id="cb" style="overflow-y:auto;background:#F3EBD9;border:1px solid #D9CBA8;border-radius:3px;padding:12px;min-height:160px;max-height:34vh;display:flex;flex-direction:column;gap:10px;">${msgs.map(m=>`<div style="text-align:${m.role==='user'?'right':'left'};"><div class="${m.role==='user'?'cus':'cai'}">${m.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div>`).join('')}${sending?`<div style="display:flex;align-items:center;gap:8px;"><div class="spin"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A7E6A;">thinking…</span></div>`:''}</div>`;}
+function scr(){setTimeout(()=>{const b=document.getElementById('cb');if(b)b.scrollTop=b.scrollHeight;},40);}
+
+/* ── evening ── */
+function mEve(){
+  const today=toK(),te=S.entries.filter(e=>e.collection==='daily'&&e.date===today);
+  const done=te.filter(e=>e.status==='done'),open=te.filter(e=>e.status==='open'&&e.symbol==='task'),canc=te.filter(e=>e.status==='cancelled');
+  if(evP==='saved')return`<div style="padding:40px;text-align:center;"><div style="font-size:30px;color:#4F6A3B;margin-bottom:10px;">✓</div><div style="font-family:Georgia,serif;font-size:19px;color:#1E1914;">Evening saved. Tomorrow is set.</div></div>`;
+  if(evP==='review')return evRev();
+  return`<div style="padding:22px;display:flex;flex-direction:column;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><span style="font-size:20px;">☽</span><h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1E1914;">Evening</h2></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"><span class="chip" style="background:rgba(79,106,59,.18);color:#4F6A3B;">${done.length} done</span><span class="chip" style="background:rgba(154,43,38,.14);color:#9A2B26;">${open.length} open</span><span class="chip" style="background:#E9DEC3;color:#8A7E6A;">${canc.length} cancelled</span></div>${chatbox(evM,modal?._s)}<div style="display:flex;gap:8px;margin-top:10px;"><input id="ei2" style="flex:1;padding:8px 12px;border:1px solid #D9CBA8;border-radius:3px;font-size:15px;color:#1E1914;background:#FBF6EA;" placeholder="Write…" onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendEve()"><button class="bdk" onclick="sendEve()" style="flex-shrink:0;">→</button></div><button style="margin-top:8px;padding:8px;border:1px solid #D9CBA8;border-radius:3px;background:none;color:#3B342A;font-size:13px;cursor:pointer;" onclick="wrapEve()">✦ Wrap up & propose tomorrow's list</button></div>`;
+}
+function evRev(){const tomorrow=addD(toK(),1);return`<div style="padding:22px;max-height:80vh;overflow-y:auto;"><div style="font-family:Georgia,serif;font-size:22px;color:#1E1914;margin-bottom:14px;">Tomorrow · ${fmtS(tomorrow)}</div><ul style="list-style:none;margin-bottom:12px;">${evPr.map((p,i)=>`<li style="display:flex;gap:8px;padding:4px 0;align-items:flex-start;"><button onclick="evPr[${i}].keep=!evPr[${i}].keep;R()" style="background:none;border:none;font-family:'IBM Plex Mono',monospace;font-size:17px;width:1.3em;text-align:center;cursor:pointer;color:${p.keep?'#1E1914':'#8A7E6A'};">${p.keep?'•':'⊘'}</button><div contenteditable="true" onblur="evPr[${i}].text=this.innerText.trim()||evPr[${i}].text" style="flex:1;font-size:15px;color:${p.keep?'#1E1914':'#8A7E6A'};${!p.keep?'text-decoration:line-through;':''}padding:3px 0;outline:none;">${p.text}</div></li>`).join('')}</ul><div style="display:flex;gap:8px;margin-bottom:14px;"><span style="font-size:14px;color:#8A7E6A;padding-top:7px;">+</span><input id="ex2" style="flex:1;padding:3px 0;font-size:14px;color:#1E1914;" placeholder="Add another…" onkeydown="if(event.key==='Enter')addEx()"></div><div style="display:flex;gap:8px;"><button class="bgh" style="color:#8A7E6A;font-size:13px;" onclick="evP='chat';R()">← Back</button><button class="bdk" style="flex:1;padding:10px;" onclick="confEve()">✓ Confirm & close the day</button></div></div>`;}
+async function startEve(){if(evM.length||modal?._s)return;const today=toK(),te=S.entries.filter(e=>e.collection==='daily'&&e.date===today);const done=te.filter(e=>e.status==='done'),open=te.filter(e=>e.status==='open'&&e.symbol==='task'),canc=te.filter(e=>e.status==='cancelled');modal._s=true;R();try{const r=await ai(`Warm journaling companion closing the user's day. ONE question at a time.\nDone: ${done.map(e=>e.text).join(', ')||'none'} | Open: ${open.map(e=>e.text).join(', ')||'none'} | Cancelled: ${canc.map(e=>e.text).join(', ')||'none'}\nBrief observation + ONE question. End with [[READY]] when done.`,[{role:'user',content:"Let's begin my evening reflection."}]);evM=[{role:'assistant',content:r.replace('[[READY]]','').trim()}];}catch{evM=[{role:'assistant',content:"Can't reach the reflection engine. Type your thoughts and I'll save them."}];}modal._s=false;R();scr();}
+async function sendEve(){const i=document.getElementById('ei2');if(!i)return;const t=i.value.trim();if(!t||modal?._s)return;evM.push({role:'user',content:t});i.value='';modal._s=true;R();scr();const today=toK(),te=S.entries.filter(e=>e.collection==='daily'&&e.date===today);const done=te.filter(e=>e.status==='done'),open=te.filter(e=>e.status==='open'&&e.symbol==='task');try{const r=await ai(`Journaling companion. Done: ${done.map(e=>e.text).join(', ')||'none'} | Open: ${open.map(e=>e.text).join(', ')||'none'}. ONE question. End [[READY]] when done.`,evM);evM.push({role:'assistant',content:r.replace('[[READY]]','').trim()});}catch{evM.push({role:'assistant',content:'(connection slipped)'});}modal._s=false;R();scr();}
+async function wrapEve(){const today=toK(),open=S.entries.filter(e=>e.collection==='daily'&&e.date===today&&e.status==='open'&&e.symbol==='task');modal._s=true;R();try{const r=await ai('Return JSON only: {"tasks":["..."]}',[...evM,{role:'user',content:`Open tasks: ${open.map(e=>e.text).join(', ')||'none'}. Propose tomorrow.`}],500);const m=r.match(/\{[\s\S]*\}/);let p={tasks:open.map(e=>e.text)};if(m){try{p=JSON.parse(m[0]);}catch{}}evPr=(p.tasks||[]).map(t=>({text:t,keep:true}));}catch{evPr=open.map(e=>({text:e.text,keep:true}));}evP='review';modal._s=false;R();}
+function addEx(){const i=document.getElementById('ex2');if(!i)return;const t=i.value.trim();if(!t)return;evPr.push({text:t,keep:true});i.value='';R();}
+function confEve(){const today=toK(),tomorrow=addD(today,1);const kept=evPr.filter(p=>p.keep&&p.text.trim());const openIds=new Set(S.entries.filter(e=>e.collection==='daily'&&e.date===today&&e.status==='open'&&e.symbol==='task').map(e=>e.id));const ne=kept.map(p=>({id:uid(),collection:'daily',date:tomorrow,symbol:'task',status:'open',text:p.text.trim(),priority:false,createdAt:new Date().toISOString()}));upd(s=>({...s,entries:[...s.entries.map(e=>openIds.has(e.id)?{...e,status:'migrated'}:e),...ne],status:{...s.status,lastEvening:today}}));evP='saved';R();setTimeout(closeM,1200);}
+
+/* ── periodic reviews ── */
+function mPer(kind){const mk=moK(),tk=wkK(),pk=kind==='weekly'?tk:mk;const label=kind==='weekly'?'the past 7 days':fmtM(mk);const dates=kind==='weekly'?Array.from({length:7},(_,i)=>addD(toK(),-6+i)):null;const we=dates?S.entries.filter(e=>e.collection==='daily'&&dates.includes(e.date)):S.entries.filter(e=>e.collection==='daily'&&e.date.startsWith(mk));const done=we.filter(e=>e.status==='done'),open=we.filter(e=>e.status==='open'&&e.symbol==='task');if(peP==='saved')return`<div style="padding:40px;text-align:center;"><div style="font-size:30px;color:#4F6A3B;margin-bottom:10px;">✓</div><div style="font-family:Georgia,serif;font-size:19px;color:#1E1914;">Reflection saved.</div></div>`;if(peP==='review'&&pePl)return perRev(kind,pk);return`<div style="padding:22px;display:flex;flex-direction:column;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><span style="font-size:20px;">${kind==='weekly'?'📅':'📆'}</span><h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1E1914;">${kind==='weekly'?'Weekly':'Monthly'} Reflection</h2></div><div style="font-family:Georgia,serif;font-style:italic;color:#3B342A;margin-bottom:12px;">${label}</div>${chatbox(peM,modal?._s)}<div style="display:flex;gap:8px;margin-top:10px;"><input id="pi" style="flex:1;padding:8px 12px;border:1px solid #D9CBA8;border-radius:3px;font-size:15px;color:#1E1914;background:#FBF6EA;" placeholder="Write…" onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendPer()"><button class="bdk" onclick="sendPer()" style="flex-shrink:0;">→</button></div><button style="margin-top:8px;padding:8px;border:1px solid #D9CBA8;border-radius:3px;background:none;color:#3B342A;font-size:13px;cursor:pointer;" onclick="wrapPer('${kind}','${pk}','${open.map(e=>e.text.replace(/'/g,"\\'").replace(/\\/g,'\\\\')).join('|||')}')">✦ Wrap up this ${kind==='weekly'?'week':'month'}</button></div>`;}
+async function startPer(kind){if(peM.length||modal?._s)return;const mk=moK();const dates=kind==='weekly'?Array.from({length:7},(_,i)=>addD(toK(),-6+i)):null;const we=dates?S.entries.filter(e=>e.collection==='daily'&&dates.includes(e.date)):S.entries.filter(e=>e.collection==='daily'&&e.date.startsWith(mk));const done=we.filter(e=>e.status==='done'),open=we.filter(e=>e.status==='open'&&e.symbol==='task');modal._s=true;R();try{const r=await ai(`Reflective ${kind} review companion. Done: ${done.map(e=>e.text).join(', ')||'none'} | Open: ${open.map(e=>e.text).join(', ')||'none'}. Pattern observation + ONE question. End [[READY]] when done.`,[{role:'user',content:`Let's do my ${kind} reflection.`}]);peM=[{role:'assistant',content:r.replace('[[READY]]','').trim()}];}catch{peM=[{role:'assistant',content:'Reflection engine unreachable. Type your thoughts here.'}];}modal._s=false;R();scr();}
+async function sendPer(){const i=document.getElementById('pi');if(!i)return;const t=i.value.trim();if(!t||modal?._s)return;peM.push({role:'user',content:t});i.value='';modal._s=true;R();scr();try{const r=await ai('Reflective journaling companion. ONE question.',peM);peM.push({role:'assistant',content:r.replace('[[READY]]','').trim()});}catch{peM.push({role:'assistant',content:'(connection slipped)'});}modal._s=false;R();scr();}
+async function wrapPer(kind,pk,openStr){modal._s=true;R();const open=openStr.split('|||').filter(Boolean);try{const r=await ai('Return JSON only: {"summary":"2-3 sentences","carry_forward":["task"]}',[...peM,{role:'user',content:`Wrap up. Open: ${open.join(', ')||'none'}`}],600);const m=r.match(/\{[\s\S]*\}/);let p={summary:'',carry_forward:open};if(m){try{p=JSON.parse(m[0]);}catch{}}p.carry_forward=(p.carry_forward||[]).map(t=>({text:t,keep:true}));pePl=p;}catch{pePl={summary:'',carry_forward:open.map(t=>({text:t,keep:true}))};}peP='review';modal._s=false;R();}
+function perRev(kind,pk){return`<div style="padding:22px;max-height:80vh;overflow-y:auto;">${pePl.summary?`<div class="card" style="padding:12px;margin-bottom:12px;background:#F3EBD9;"><div style="font-family:Georgia,serif;font-style:italic;font-size:15px;line-height:1.6;color:#3B342A;">${pePl.summary}</div></div>`:''}<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:8px;">Carry forward</div><ul style="list-style:none;margin-bottom:14px;">${(pePl.carry_forward||[]).map((c,i)=>`<li style="display:flex;gap:8px;padding:3px 0;align-items:flex-start;"><button onclick="pePl.carry_forward[${i}].keep=!pePl.carry_forward[${i}].keep;R()" style="background:none;border:none;font-family:'IBM Plex Mono',monospace;font-size:17px;width:1.3em;text-align:center;cursor:pointer;color:${c.keep?'#1E1914':'#8A7E6A'};">${c.keep?'•':'⊘'}</button><div contenteditable="true" onblur="pePl.carry_forward[${i}].text=this.innerText.trim()||pePl.carry_forward[${i}].text" style="flex:1;font-size:15px;color:${c.keep?'#1E1914':'#8A7E6A'};${!c.keep?'text-decoration:line-through;':''}padding:3px 0;outline:none;">${c.text}</div></li>`).join('')}</ul><div style="display:flex;gap:8px;"><button class="bgh" style="color:#8A7E6A;font-size:13px;" onclick="peP='chat';R()">← Back</button><button class="bdk" style="flex:1;padding:10px;" onclick="savePer('${kind}','${pk}')">✓ Save reflection</button></div></div>`;}
+function savePer(kind,pk){const kept=(pePl?.carry_forward||[]).filter(c=>c.keep&&c.text.trim());const ne=kept.map(c=>({id:uid(),collection:kind==='weekly'?'daily':'monthly',date:kind==='weekly'?addD(toK(),1):nxMo(pk),symbol:'task',status:'open',text:c.text.trim(),priority:false,createdAt:new Date().toISOString()}));upd(s=>({...s,entries:[...s.entries,...ne],reviews:{...s.reviews,[kind]:{...s.reviews[kind],[pk]:{at:new Date().toISOString()}}},status:{...s.status,...(kind==='weekly'?{lastWeekly:pk}:{lastMonthly:pk})}}));peP='saved';R();setTimeout(closeM,1200);}
+
+/* ── annual ── */
+const AQ=['What went well this year — 2-3 things that felt most alive?',"What didn't go well? Be honest.",'Pattern I want to continue?','Pattern I want to break?','What did I learn about myself this year?','Which relationships grew? Which to invest in more?','What am I most grateful for?','Energy-drainers I can remove?','Skills I want to develop?',"Last year's goals: achieved, not achieved, lessons?",'What do I want MORE of next year?','What do I want LESS of?','Candidate 12-month goals? (Write freely — MWG prioritizes them.)'];
+function mAnn(){const y=yrK();if(!S.annualSession||S.annualSession.year!==y){setTimeout(()=>upd(s=>({...s,annualSession:{year:y,startedAt:new Date().toISOString(),completedAt:null,questions:AQ.map(text=>({id:uid(),text,answer:'',status:'pending'})),synthesis:null}})),50);return`<div style="padding:32px;text-align:center;font-family:Georgia,serif;font-style:italic;color:#8A7E6A;font-size:18px;">Preparing…</div>`;}
+const ses=S.annualSession;if(ses.synthesis)return annSyn(ses,y);
+const answered=ses.questions.filter(x=>x.status==='answered').length,total=ses.questions.length,deferred=ses.questions.filter(x=>x.status==='deferred').length;const allR=ses.questions.every(x=>x.status==='answered'||x.status==='skipped');const fi=ses.questions.findIndex(q=>q.status==='pending'||q.status==='deferred');const ci=anQ>=0&&anQ<total?anQ:(fi>=0?fi:0);const q=ses.questions[ci];const sc={pending:{c:'#8A7E6A',bg:'#E9DEC3'},answered:{c:'#4F6A3B',bg:'rgba(79,106,59,.18)'},deferred:{c:'#9A2B26',bg:'rgba(154,43,38,.14)'},skipped:{c:'#8A7E6A',bg:'#E9DEC3'}};
+return`<div style="padding:22px;max-height:85vh;overflow-y:auto;"><h2 style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#1E1914;margin-bottom:4px;">Annual Reflection · ${y}</h2><div style="font-family:Georgia,serif;font-style:italic;color:#3B342A;font-size:14px;margin-bottom:10px;">Multi-session. Defer hard questions and come back anytime.</div><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><div style="flex:1;height:4px;border-radius:999px;background:#E9DEC3;overflow:hidden;"><div style="width:${Math.round(((answered+ses.questions.filter(x=>x.status==='skipped').length)/total)*100)}%;height:100%;background:#4F6A3B;"></div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;white-space:nowrap;">${answered}/${total} · ${deferred} deferred</span></div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;">${ses.questions.map((x,i)=>`<button onclick="anQ=${i};R()" style="width:26px;height:26px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;border:none;cursor:pointer;background:${sc[x.status].bg};color:${sc[x.status].c};box-shadow:${i===ci?'inset 0 0 0 1.5px #1E1914':'none'};" title="${x.text.slice(0,50)}">${i+1}</button>`).join('')}</div>${q?`<div class="card" style="padding:18px;margin-bottom:12px;background:#F3EBD9;"><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:6px;">Q${ci+1} of ${total} · ${q.status}</div><div style="font-family:Georgia,serif;font-size:18px;line-height:1.4;color:#1E1914;margin-bottom:12px;">${q.text}</div><textarea id="aqt" style="width:100%;padding:6px 0;font-size:15px;line-height:1.6;min-height:100px;color:#1E1914;" placeholder="Write as much or as little as you want…">${q.answer||''}</textarea></div>`:''}<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><button class="bgh" style="color:#8A7E6A;font-size:13px;" onclick="anQ=Math.max(0,${ci}-1);R()">← Prev</button><button class="bgh" style="border:1px solid #D9CBA8;font-size:13px;" onclick="deferAQ(${ci})">Defer</button><button class="bgh" style="color:#8A7E6A;font-size:13px;" onclick="skipAQ(${ci})">Skip</button><div style="flex:1;"></div><button class="bdk" onclick="saveAQ(${ci})">Save & next →</button></div>${allR?`<div class="card" style="padding:14px;margin-top:16px;background:#F3EBD9;"><button id="synb" class="bdk" style="display:flex;align-items:center;gap:8px;" onclick="genSyn()">✦ Generate synthesis</button></div>`:''}<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;text-align:center;margin-top:10px;">Progress saved automatically.</div></div>`;}
+function saveAQ(i){const ta=document.getElementById('aqt');const a=ta?ta.value.trim():'';upd(s=>({...s,annualSession:{...s.annualSession,questions:s.annualSession.questions.map((x,ii)=>ii===i?{...x,answer:a,status:a?'answered':'pending'}:x)}}));const next=S.annualSession.questions.findIndex((x,ii)=>ii>i&&(x.status==='pending'||x.status==='deferred'));anQ=next!==-1?next:i;R();}
+function deferAQ(i){const ta=document.getElementById('aqt');const a=ta?ta.value.trim():'';upd(s=>({...s,annualSession:{...s.annualSession,questions:s.annualSession.questions.map((x,ii)=>ii===i?{...x,answer:a,status:'deferred'}:x)}}));const next=S.annualSession.questions.findIndex((x,ii)=>ii>i&&x.status==='pending');anQ=next!==-1?next:i;R();}
+function skipAQ(i){upd(s=>({...s,annualSession:{...s.annualSession,questions:s.annualSession.questions.map((x,ii)=>ii===i?{...x,status:'skipped'}:x)}}));const next=S.annualSession.questions.findIndex((x,ii)=>ii>i&&(x.status==='pending'||x.status==='deferred'));anQ=next!==-1?next:i;R();}
+async function genSyn(){const btn=document.getElementById('synb');if(btn)btn.textContent='Generating…';const ses=S.annualSession;const body=ses.questions.filter(x=>x.status==='answered').map(x=>`Q: ${x.text}\nA: ${x.answer}`).join('\n\n');try{const r=await ai('Thoughtful annual-reflection companion. 3-5 paragraphs: warm, themes, what the year revealed, what wants to happen next year.',[{role:'user',content:body}],1100);upd(s=>({...s,annualSession:{...s.annualSession,synthesis:r,completedAt:new Date().toISOString()}}));}catch{upd(s=>({...s,annualSession:{...s.annualSession,synthesis:'(Synthesis engine unreachable — your answers are saved.)',completedAt:new Date().toISOString()}}));}}
+function annSyn(ses,y){return`<div style="padding:22px;max-height:80vh;overflow-y:auto;"><h2 style="font-family:Georgia,serif;font-size:22px;font-weight:400;color:#1E1914;margin-bottom:14px;">Synthesis · ${y}</h2><div class="card" style="padding:18px;margin-bottom:16px;background:#F3EBD9;"><div style="font-family:Georgia,serif;font-size:15px;line-height:1.7;white-space:pre-wrap;color:#1E1914;">${ses.synthesis}</div></div><div style="display:flex;gap:8px;"><button class="bgh" style="color:#8A7E6A;" onclick="finalAnn()">Save & close</button><button class="bdk" style="flex:1;padding:10px;" onclick="finalWand()">✦ Continue to Magic Wand</button></div></div>`;}
+function finalAnn(){const y=yrK();upd(s=>({...s,reviews:{...s.reviews,annual:{...s.reviews.annual,[y]:{at:new Date().toISOString(),synthesis:S.annualSession?.synthesis||''}}},annualSession:null,status:{...s.status,lastAnnual:y}}));closeM();}
+function finalWand(){finalAnn();openM('wand');}
+
+/* ── magic wand ── */
+function mWand(){const goals=S.entries.filter(e=>e.collection==='goals'&&e.status!=='done'&&e.status!=='cancelled');if(!goals.length)return`<div style="padding:32px;text-align:center;"><div style="font-size:26px;color:#B88A3F;margin-bottom:10px;">✦</div><h2 style="font-family:Georgia,serif;font-size:20px;color:#1E1914;margin-bottom:8px;">No goals yet</h2><p style="font-size:14px;color:#3B342A;margin-bottom:14px;">Add goals to your Goals collection first.</p><button class="bdk" onclick="closeM()">Okay</button></div>`;const idx=modal._wi||0;if(idx>=goals.length||modal._wd){const sc=modal._ws||{};const sorted=goals.map(x=>({...x,wandScore:sc[x.id]})).sort((a,b)=>(b.wandScore??0)-(a.wandScore??0));return`<div style="padding:22px;"><h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1E1914;margin-bottom:14px;">✦ Prioritized</h2><ul style="list-style:none;margin-bottom:16px;max-height:50vh;overflow-y:auto;">${sorted.map((x,i)=>`<li style="display:flex;gap:10px;align-items:center;padding:8px 12px;background:#F3EBD9;border:1px solid #D9CBA8;border-radius:3px;margin-bottom:5px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A7E6A;width:18px;">${i+1}.</span><span style="flex:1;font-size:15px;color:#1E1914;">${x.text}</span><span class="chip" style="background:#B88A3F;color:#FFF7E2;">MWG ${x.wandScore}</span></li>`).join('')}</ul><button class="bdk" style="width:100%;padding:10px;" onclick="saveWand()">Save & close</button></div>`;}
+const g=goals[idx];return`<div style="padding:24px;"><h2 style="font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1E1914;margin-bottom:4px;">✦ Magic Wand</h2><div style="font-family:Georgia,serif;font-style:italic;color:#3B342A;margin-bottom:18px;">If a wand granted this goal <em>immediately</em> — how important would that feel right now?</div><div class="card" style="padding:18px;margin-bottom:18px;text-align:center;background:#F3EBD9;"><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.22em;color:#8A7E6A;margin-bottom:6px;">Goal ${idx+1} of ${goals.length}</div><div style="font-family:Georgia,serif;font-size:20px;line-height:1.4;color:#1E1914;">${g.text}</div></div><div style="display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-bottom:6px;">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button onclick="scoreW(${n},'${g.id}')" style="aspect-ratio:1;border-radius:3px;border:1px solid #D9CBA8;font-family:'IBM Plex Mono',monospace;font-size:15px;cursor:pointer;background:${n<=3?'rgba(138,126,106,.15)':n<=7?'rgba(184,138,63,.2)':'rgba(154,43,38,.18)'};color:#1E1914;">${n}</button>`).join('')}</div><div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A7E6A;"><span>meh</span><span>nice</span><span>urgent</span></div></div>`;}
+function scoreW(n,gid){if(!modal._ws)modal._ws={};modal._ws[gid]=n;modal._wi=(modal._wi||0)+1;const goals=S.entries.filter(e=>e.collection==='goals'&&e.status!=='done'&&e.status!=='cancelled');if(modal._wi>=goals.length)modal._wd=true;R();}
+function saveWand(){const sc=modal._ws||{};upd(s=>({...s,entries:s.entries.map(e=>sc[e.id]!=null?{...e,wandScore:sc[e.id]}:e)}));closeM();}
+
+load();
+</script>
+</body>
+</html>
